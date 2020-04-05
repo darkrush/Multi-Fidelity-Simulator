@@ -171,7 +171,10 @@ class Agent(object):
             v_oa = a_pos - o_pos
             v_ob = b_pos - o_pos
             v_ab = b_pos - a_pos
+            print(np.linalg.norm(v_ab))
+            print(np.cross(v_oa,v_ab))
             dist_o_ab = np.abs(np.cross(v_oa,v_ab)/np.linalg.norm(v_ab))
+
             #if distance(o,ab) > R, laser signal changes
             if dist_o_ab > R:
                 continue
@@ -393,7 +396,7 @@ class World(object):
     def render(self,time , mode='human'):
         if self.viewer is None:
             from . import rendering 
-            self.viewer = rendering.Viewer(int(400*self.window_scale),int(400*self.window_scale))
+            self.viewer = rendering.Viewer(int(800*self.window_scale),int(800*self.window_scale))
         # create rendering geometry
         if self.agent_geom_list is None:
             # import rendering only if we need it (and don't import for headless machines)
@@ -455,15 +458,18 @@ class World(object):
             for fence in self.fences:
                 if fence.filled :
                     geom = rendering.make_polygon(fence.global_vertices)
+                    geom.set_color(*fence.color)
                 else:
                     geom = rendering.make_polyline(fence.global_vertices)
                 xform = rendering.Transform() 
-                geom.set_color(*fence.color)
+                #geom.set_color(*fence.color)
                 geom.add_attr(xform)
                 self.fence_geom_list.append([geom,xform])
         
             #self.render_geoms_xform.append(xform)
             self.viewer.geoms = []
+            for fence_geom in self.fence_geom_list:
+                self.viewer.add_geom(fence_geom[0])
             for agent_geom in self.agent_geom_list:
                 self.viewer.add_geom(agent_geom['target_circle'][0])
                 for geom in agent_geom['laser_line']:
@@ -472,8 +478,7 @@ class World(object):
                 self.viewer.add_geom(agent_geom['front_line'][0])
                 self.viewer.add_geom(agent_geom['back_line'][0])
 
-            for fence_geom in self.fence_geom_list:
-                self.viewer.add_geom(fence_geom[0])
+            
                 
 
         self.update_laser_state()

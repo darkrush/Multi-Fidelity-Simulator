@@ -33,7 +33,7 @@ def parse_senario(senario_file):
     senario_dict['agent_groups'] = agent_list
 
     fence_list = {}
-    if 'fence_group' in raw_senario_dict:
+    if 'fence_group' in raw_senario_dict and raw_senario_dict['fence_group'] is not None:
         for key,group in raw_senario_dict['fence_group'].items():
             fence = {}
             for (k,v) in group.items():
