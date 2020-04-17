@@ -37,7 +37,7 @@ class Args(object):
         parser.add_argument('--discount', default=0.90, type=float, help='reward discout')
         parser.add_argument('--tau', default=0.001, type=float, help='moving average for target network')
         parser.add_argument('--nocuda', dest='with_cuda', action='store_false',help='disable cuda')
-        parser.set_defaults(with_cuda=True)
+        parser.set_defaults(with_cuda=False)
         parser.add_argument('--buffer-size', default=1e6, type=int, help='memory buffer size')
         #Exploration args
         parser.add_argument('--action-noise', dest='action_noise', action='store_true',help='enable action space noise')

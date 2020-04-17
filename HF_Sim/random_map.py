@@ -1,119 +1,159 @@
-from .basic import AgentState,Action,Observation,Fence
+#from .basic import AgentState,Action,Observation,Fence
 import numpy as np
-def temp_agent_prop():
-    basic_agent_prop = {}
-    basic_agent_prop['R_safe'] = 0.20
-    basic_agent_prop['R_reach']= 0.1
-    basic_agent_prop['L_car']  = 0.30
-    basic_agent_prop['W_car']  = 0.20
-    basic_agent_prop['L_axis'] = 0.20
-    basic_agent_prop['R_laser']= 3.0
-    basic_agent_prop['N_laser']= 32
-    basic_agent_prop['K_vel']  = 0.8266     # coefficient of back whell velocity control
-    basic_agent_prop['K_phi']   = 0.2983   # coefficient of front wheel deflection control 
-    basic_agent_prop['init_movable'] =  True
-    basic_agent_prop['init_enable'] =  True
-    return basic_agent_prop
+import copy
 
-def place_wall(cord,car_width,pixel_size):
-    first_direction = 0 if cord[2]>cord[3] else 1    
-    #first_direction = np.random.randint(2)
-    placed_cord = -1
-    if cord[2+first_direction] > 2*car_width:
-        placed_cord = first_direction
-    elif cord[3-first_direction] > 2*car_width:
-        placed_cord = 1-first_direction
-    if placed_cord > -1:
-        
-        wall_cord = np.clip(np.random.randn()/5.0,-1.0,1.0)*(cord[2+placed_cord]/2.0-car_width)+cord[2+placed_cord]/2.0
-        wall = [placed_cord,wall_cord,pixel_size]
-        first_cord = cord.copy()
-        first_cord[2+placed_cord] = wall_cord
-        second_cord = cord.copy()
-        second_cord[placed_cord] = second_cord[placed_cord] + wall_cord
-        second_cord[2+placed_cord] = second_cord[2+placed_cord] - wall_cord
-        return [wall,first_cord,second_cord]
-    else:
+def place_wall(coord,car_R,half_wall_width):
+    # select long direction to place split wall
+    place_direction = 0 if coord[2]>coord[3] else 1
+    # check the place direction have enough distance
+    if coord[2+place_direction] < (2*half_wall_width + 2*car_R)*2:
         return None
+    # place wall and split the room into two    
+    mid_coord = coord[2+place_direction]/2.0
+    random_range = coord[2+place_direction]/2.0 - 2*car_R -2*half_wall_width
+    wall_coord = np.clip(np.random.randn()/5.0,-1.0,1.0)*random_range + mid_coord
+    # a wall is a list with [x,y,direction,length,half_wall_width]
+    wall = {'coord':[coord[0],coord[1]],
+            'direction':place_direction,
+            'length':coord[3-place_direction],
+            'hww':half_wall_width,
+            #'door':[coord[3-place_direction]/3.0,coord[3-place_direction]/3.0]}
+            'door':[]}
+    wall['coord'][place_direction] = wall['coord'][place_direction] + wall_coord
+    # calculate the coordinate for two childen 
+    first_coord = coord.copy()
+    first_coord[2+place_direction] = wall_coord
+    second_coord = coord.copy()
+    second_coord[place_direction] = second_coord[place_direction] + wall_coord
+    second_coord[2+place_direction] = second_coord[2+place_direction] - wall_coord
+    return [wall,first_coord,second_coord]
 
-def random_map(map_W, map_H, pixel_size, car_width,door_width, wall_number, agent_number):
-    placed_wall_number=0
-    root_room = {'cord':[-map_W/2,-map_H/2,map_W,map_H], 'edge':[None,None,None,None], 'wall':None, 'door':None, 'children':None, 'parent':None}
-    dead_count = 1000
-    room_list = [root_room]
-    while placed_wall_number<wall_number:
-        placed = False
-        for current_id in range(len(room_list)):
-            if room_list[current_id]['wall'] is None:
-                wall = place_wall(room_list[current_id]['cord'],car_width,pixel_size)
-                if wall is not None:
-                    placed = True
-                    break
 
-        if placed:
-            first_children_edge = room_list[current_id]['edge'].copy()
-            second_children_edge = room_list[current_id]['edge'].copy()
-            if wall[0][0]==0:
-                first_children_edge[1] = current_id
-                second_children_edge[0] = current_id
-            else:
-                first_children_edge[3] = current_id
-                second_children_edge[2] = current_id
 
-            first_children = {'cord':wall[1], 'edge':first_children_edge, 'wall':None, 'door':None, 'children':None, 'parent':room_list[current_id]}
-            second_children = {'cord':wall[2], 'edge':second_children_edge, 'wall':None, 'door':None, 'children':None, 'parent':room_list[current_id]}
-            room_list[current_id]['wall'] = wall[0]
-            room_list[current_id]['children'] = [first_children,second_children]
-
-            room_list.append(first_children)
-            room_list.append(second_children)
-
-            placed_wall_number = placed_wall_number + 1
-        else:
-            raise Exception("No leaf_room can place wall")
-        
-        dead_count = dead_count-1
-        if dead_count==0:
-            raise Exception("failed")
+def random_room(map_W,map_H,half_wall_width, car_R, door_width, room_number, max_dead_count = 1000):
+    assert door_width >= 2*car_R
+    # a wall is a list with [x,y,direction,length,half_wall_width]
     
-    for current_id in range(len(room_list)):
-        current_cord = room_list[current_id]['cord']
-        current_wall = room_list[current_id]['wall']
-        if current_wall is None:
-            continue
-        connect_wall_list = []
-        for room_id in range(current_id+1,len(room_list)):
-            room = room_list[room_id]
-            if room['wall'] is None:
-                continue
-            if current_id in room['edge'] and not room['wall'][0]==current_wall[0]:
-                connect_wall_list.append(room['wall'][1]+room['cord'][1-current_wall[0]])
-        placed = False
-        dead_count = 1000
-        while not placed:
-            if current_cord[current_wall[0]+2]<door_width+pixel_size:
-                raise Exception("failed")
-            rand_range = current_cord[1-current_wall[0]+2]-door_width-pixel_size
-            start_cord = current_cord[1-current_wall[0]]
-            door_cord = np.random.rand()*rand_range+pixel_size/2.0
-            check_wall = True
-            for wall_cord in connect_wall_list:
-                right_beyound = wall_cord+pixel_size/2<door_cord+start_cord
-                left_beyound =   wall_cord-pixel_size/2 >door_cord+door_width+start_cord
-                if not (right_beyound or  left_beyound):
-                    check_wall= False
+    wall_list = []
+    wall = {'coord':[0,0],
+            'direction':0,
+            'length':map_H,
+            'hww':half_wall_width,
+            'door':[]}
+
+    wall_list.append(wall.copy())#left
+    wall['coord'] = [map_W,0]
+    wall_list.append(wall.copy())#right
+    wall['coord'] = [0,0]
+    wall['direction'] = 1
+    wall['length'] = map_W
+    wall_list.append(wall.copy())#bottom
+    wall['coord'] = [0,map_H]
+    wall_list.append(wall.copy())#top
+
+    room_list = []
+    room_list.append({'coord':[0,0,map_W,map_H],'edge':[0,1,2,3]})
+    while len(room_list)<room_number:
+        max_length_id=[0,0]
+        max_length = room_list[0]['coord'][2]
+        for idx,room in enumerate(room_list):
+            if room['coord'][2]>max_length:
+                max_length_id = [idx,0]
+                max_length = room['coord'][2]
+            if room['coord'][3]>max_length:
+                max_length_id = [idx,1]
+                max_length = room['coord'][3]
+        wall_result = place_wall(room_list[max_length_id[0]]['coord'],car_R,half_wall_width)
+        if wall_result is None:
+            print('cannot place enough room')
+            break
+        wall,fst_coord,scd_coord = wall_result
+        wall_idx = len(wall_list)
+        wall_list.append(wall)
+        fst_edge = room_list[max_length_id[0]]['edge'].copy()
+        scd_edge = room_list[max_length_id[0]]['edge'].copy()
+        if wall['direction']==0:
+            fst_edge[1] = wall_idx
+            scd_edge[0] = wall_idx
+        else:
+            fst_edge[3] = wall_idx
+            scd_edge[2] = wall_idx
+
+        room_list.pop(max_length_id[0])
+        room_list.append({'coord':fst_coord,'edge':fst_edge})
+        room_list.append({'coord':scd_coord,'edge':scd_edge})
+    
+    placeable_area_list = []
+    for room in room_list:
+        x = room['coord'][0] + wall_list[room['edge'][0]]['hww']
+        y = room['coord'][1] + wall_list[room['edge'][2]]['hww']
+        w = room['coord'][2] - wall_list[room['edge'][0]]['hww'] - wall_list[room['edge'][1]]['hww']
+        h = room['coord'][3] - wall_list[room['edge'][2]]['hww'] - wall_list[room['edge'][3]]['hww']
+        placeable_area_list.append([x,y,w,h])
+
+    return room_list, wall_list, placeable_area_list
+
+def check_adjacency(room_1,room_2,door_width,half_wall_width,share_pair):
+    direction = 1 if (share_pair[0] == 0 or share_pair[0] == 1) else 0
+    low_cord = max(room_1['coord'][direction],room_2['coord'][direction])
+    high_cord = min(room_1['coord'][direction] + room_1['coord'][direction+2], \
+                    room_2['coord'][direction] + room_2['coord'][direction+2])
+    if high_cord<low_cord+door_width+half_wall_width*2:
+        return None
+    return low_cord,high_cord
+
+def place_door_wall(wall,low,high,half_wall_width, door_width):
+    direction = wall['direction']
+    start = wall['coord'][1-direction]
+    random_range = high-low-2*half_wall_width-door_width
+    random_start = low + half_wall_width
+    coord = np.random.rand()*random_range + random_start - start
+    return [coord,door_width]
+
+def place_door(room_list, wall_list,half_wall_width, door_width, extra_door_prop = 0.5):
+    share_idx_pair = [[0,1],[1,0],[2,3],[3,2]]
+    adjacency_tabel = []
+    #判定所有房间之间的有效邻接性（至少可以通过一扇门打通）
+    for idx_1 in range(len(room_list)):
+        for idx_2 in range(idx_1+1,len(room_list)):
+            share = -1
+            for share_idx in range(4):
+                edge_1,edge_2 = share_idx_pair[share_idx]
+                if room_list[idx_1]['edge'][edge_1] == room_list[idx_2]['edge'][edge_2]:
+                    share = share_idx
+                    wall_idx = room_list[idx_1]['edge'][edge_1]
                     break
-            if check_wall:
-                placed = True
-            dead_count = dead_count -1
-            if dead_count == 0:
-                raise Exception("failed")
-        room_list[current_id]['door'] =[door_cord,door_width]
-            
-    return room_list#root_room
+            if share == -1:
+                continue
+            adjacency_result = check_adjacency(room_list[idx_1],room_list[idx_2],door_width,half_wall_width,share_idx_pair[share])
+            if adjacency_result is not None:
+                adjacency = [idx_1,idx_2,wall_idx,adjacency_result[0],adjacency_result[1]]
+                adjacency_tabel.append(adjacency)
 
+    new_wall_list = wall_list.copy()
+    #检测全图连通性
+    connected_component_list = [[idx] for idx in range(len(room_list))]
+    for adj in adjacency_tabel:
+        for idx,cc in enumerate(connected_component_list):
+            if adj[0] in cc:
+                a_idx = idx
+            if adj[1] in cc:
+                b_idx = idx
+        if a_idx == b_idx:
+            if np.random.rand()<extra_door_prop:
+                new_door = place_door_wall(new_wall_list[adj[2]],adj[3],adj[4],half_wall_width, door_width)
+                new_wall_list[adj[2]]['door'].append(new_door)
+        else:
+            connected_component_list[a_idx].extend(connected_component_list[b_idx])
+            connected_component_list.pop(b_idx)
+            new_door = place_door_wall(new_wall_list[adj[2]],adj[3],adj[4],half_wall_width, door_width)
+            new_wall_list[adj[2]]['door'].append(new_door)
+    # 非连通图，无法构造
+    if len(connected_component_list)>1:
+        return None
+    return new_wall_list
 
-def room2fence(room_list):
+def wall2fence(wall_list):
     basic_fence_prop = {}
     basic_fence_prop['color'] = [0, 0, 0]
     basic_fence_prop['anchor_x'] = 0
@@ -122,172 +162,86 @@ def room2fence(room_list):
     basic_fence_prop['filled'] = True
     basic_fence_prop['close'] = True
     Fence_list = {}
-    root_room = room_list[0]
-    next_node = [root_room]
-    wall_list = []
-    while len(next_node)>0:
-        if next_node[0]['wall'] is not None:
-            wall_list.append((next_node[0]['cord'],next_node[0]['wall'],next_node[0]['door']))
-        if next_node[0]['children'] is not None:
-            next_node.append(next_node[0]['children'][0])
-            next_node.append(next_node[0]['children'][1])
-        next_node.pop(0)
-    x=root_room['cord'][0]
-    y=root_room['cord'][1]
-    w=root_room['cord'][2]
-    h=root_room['cord'][3]
-    vertices = [[x,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y]]
-    edge_fence = basic_fence_prop.copy()
-    edge_fence['vertices_x'] = [x for (x,y) in vertices]
-    edge_fence['vertices_y'] = [y for (x,y) in vertices]
-    edge_fence['color'] = [1, 1, 1]
-    edge_fence['fill'] = False
-    Fence_list[len(Fence_list)] = edge_fence
-    for (cord,wall,door) in wall_list:
-        x = cord[0]
-        y = cord[1]
-        w = cord[2]
-        h = cord[3]
-        wc = wall[1]
-        wall_width = wall[2]
-        if door is None:
-            if wall[0] is 0:
-                vertices = [[x+wc-wall_width,y],[x+wc+wall_width,y],[x+wc+wall_width,y+h],[x+wc-wall_width,y+h]]
-            else:
-                vertices = [[x,y+wc-wall_width],[x,y+wc+wall_width],[x+w,y+wc+wall_width],[x+w,y+wc-wall_width]]
-            wall_fence = basic_fence_prop.copy()
-            wall_fence['vertices_x'] = [x for (x,y) in vertices]
-            wall_fence['vertices_y'] = [y for (x,y) in vertices]
-            Fence_list[len(Fence_list)] = wall_fence
+    for wall in wall_list:
+        x = wall['coord'][0]
+        y = wall['coord'][1]
+        direction = wall['direction']
+        hww = wall['hww']
+        l = wall['length']
+        door_list = wall['door']
+        start = 0
+        if len(door_list)>0:
+            for door in sorted(door_list,key = lambda x:x[0]):
+                dc = door[0]
+                dw = door[1]
+                if direction is 0:
+                    vertices = [[x-hww,y+start],[x+hww,y+start],[x+hww,y+dc],[x-hww,y+dc]]
+                else:
+                    vertices = [[x+start,y-hww],[x+start,y+hww],[x+dc,y+hww],[x+dc,y-hww]]
+                wall_fence = basic_fence_prop.copy()
+                wall_fence['vertices_x'] = [x for (x,y) in vertices]
+                wall_fence['vertices_y'] = [y for (x,y) in vertices]
+                Fence_list[len(Fence_list)] = wall_fence
+                start = dc+dw
+
+        if direction is 0:
+            vertices = [[x-hww,y+start],[x+hww,y+start],[x+hww,y+l],[x-hww,y+l]]
         else:
-            dc = door[0]
-            dw = door[1]
-            if wall[0] is 0:
-                #vertices = [[x+wc-wall_width,y+dc],[x+wc+wall_width,y+dc],[x+wc+wall_width,y+dc+dw],[x+wc-wall_width,y+dc+dw]]
-                vertices1 = [[x+wc-wall_width,y],[x+wc+wall_width,y],[x+wc+wall_width,y+dc],[x+wc-wall_width,y+dc]]
-                vertices2 = [[x+wc-wall_width,y+dc+dw],[x+wc+wall_width,y+dc+dw],[x+wc+wall_width,y+h],[x+wc-wall_width,y+h]]
-            else:
-                #vertices = [[x+dc,y+wc-wall_width],[x+dc,y+wc+wall_width],[x+dc+dw,y+wc+wall_width],[x+dc+dw,y+wc-wall_width]]
-                vertices1 = [[x,y+wc-wall_width],[x,y+wc+wall_width],[x+dc,y+wc+wall_width],[x+dc,y+wc-wall_width]]
-                vertices2 = [[x+dc+dw,y+wc-wall_width],[x+dc+dw,y+wc+wall_width],[x+w,y+wc+wall_width],[x+w,y+wc-wall_width]]
-            wall_fence = basic_fence_prop.copy()
-            wall_fence['vertices_x'] = [x for (x,y) in vertices1]
-            wall_fence['vertices_y'] = [y for (x,y) in vertices1]
-            Fence_list[len(Fence_list)] = wall_fence
-            wall_fence = basic_fence_prop.copy()
-            wall_fence['vertices_x'] = [x for (x,y) in vertices2]
-            wall_fence['vertices_y'] = [y for (x,y) in vertices2]
-            Fence_list[len(Fence_list)] = wall_fence
-    return  Fence_list
+            vertices = [[x+start,y-hww],[x+start,y+hww],[x+l,y+hww],[x+l,y-hww]]
+        wall_fence = basic_fence_prop.copy()
+        wall_fence['vertices_x'] = [x for (x,y) in vertices]
+        wall_fence['vertices_y'] = [y for (x,y) in vertices]
+        Fence_list[len(Fence_list)] = wall_fence
+    return Fence_list
 
-def random_agent(room_list, agent_number, Agent_prop = None):
-    if Agent_prop is None:
-        Agent_prop = temp_agent_prop()
-    
-    leaf_room_list = [room for room in room_list if room['children'] is None]
-    room_size_list = []
-    R_Safe = Agent_prop['R_safe']
-    for leaf_room in leaf_room_list:
-        x,y,w,h = leaf_room['cord']
-        wall_width = []
-        for i in range(4):
-            print(leaf_room['edge'][i])
-            if leaf_room['edge'][i] is not None:
-                print(room_list[leaf_room['edge'][i]]['wall'])
-            wall_width.append(0 if leaf_room['edge'][i] is None else room_list[leaf_room['edge'][i]]['wall'][2])
-        x = x+wall_width[0]+R_Safe
-        y = y+wall_width[2]+R_Safe
-        w = w - wall_width[0] - wall_width[1]-2*R_Safe
-        h = h - wall_width[2] - wall_width[3]-2*R_Safe
-        room_size_list.append([x,y,w,h])
-    dead_count = 1000
-    agent_cord_list = {'agent_init_cord':[],'agent_target_cord':[]}
-    for cord_list_id in ['agent_init_cord','agent_target_cord']:
-        while dead_count>0:
-            room_id_list = [np.random.randint(len(room_size_list)) for _ in range(agent_number)]
-            x_list = [room_size_list[room_id][0]+ room_size_list[room_id][2]*np.random.rand() for room_id in room_id_list]
-            y_list = [room_size_list[room_id][1]+ room_size_list[room_id][3]*np.random.rand() for room_id in room_id_list]
-            failed = False
-            for pos_id_1 in range(agent_number):
-                for pos_id_2 in range(pos_id_1+1,agent_number):
-                    dist_squre = (x_list[pos_id_1]-x_list[pos_id_2])**2+(y_list[pos_id_1]-y_list[pos_id_2])**2
-                    if dist_squre<(2*R_Safe)**2:
-                        failed = True
-                        break
-                if failed :
-                    break
-            if not failed:
-                break
-            dead_count = dead_count - 1
-            if dead_count == 0:
-                raise Exception("failed")
-        agent_cord_list[cord_list_id] = [[x,y]for (x,y) in zip(x_list,y_list)]
-    main_group = []
-    for agent_id in range(agent_number):
-        agent_prop = Agent_prop.copy()
-        agent_prop['init_x'] = agent_cord_list['agent_init_cord'][agent_id][0]
-        agent_prop['init_y'] = agent_cord_list['agent_init_cord'][agent_id][1]
-        agent_prop['init_theta'] = np.random.rand()*6.28
-        agent_prop['init_vel_b'] = 0
-        agent_prop['init_phi'] = 0
+def random_fence(map_W,map_H,half_wall_width, car_R, door_width, room_number, max_dead_count = 1000):
+    room_list, wall_list, placeable_area_list = random_room(map_W = map_W,
+                                          map_H = map_H,
+                                          half_wall_width = half_wall_width,
+                                          car_R = car_R,
+                                          door_width = door_width,
+                                          room_number = room_number)
 
+    wall_list = place_door(room_list,wall_list,half_wall_width,door_width)
+    fence_dict = wall2fence(wall_list)
+    return fence_dict, placeable_area_list
 
-        agent_prop['init_target_x'] = agent_cord_list['agent_target_cord'][agent_id][0]
-        agent_prop['init_target_y'] = agent_cord_list['agent_target_cord'][agent_id][1]
-        main_group.append(agent_prop)
-
-    Agent_list = {'main_group':main_group}
-    return Agent_list
-
-def render(room_list):
+def render(wall_list, placeable_area_list = None):
     from . import rendering 
-    viewer = rendering.Viewer(int(400),int(400))
-    viewer.set_bounds(-5,+5,-5,+5)
-    root_room = room_list[0]
-    next_node = [root_room]
-    wall_list = []
-    while len(next_node)>0:
-        if next_node[0]['wall'] is not None:
-            wall_list.append((next_node[0]['cord'],next_node[0]['wall'],next_node[0]['door']))
-        if next_node[0]['children'] is not None:
-            next_node.append(next_node[0]['children'][0])
-            next_node.append(next_node[0]['children'][1])
-        next_node.pop(0)
-    x=root_room['cord'][0]
-    y=root_room['cord'][1]
-    w=root_room['cord'][2]
-    h=root_room['cord'][3]
-    vertices = [[x,y],[x+w,y],[x+w,y+h],[x,y+h],[x,y]]
-    geom = rendering.make_polyline(vertices)
-    viewer.add_geom(geom)
-    for (cord,wall,door) in wall_list:
-        x = cord[0]
-        y = cord[1]
-        w = cord[2]
-        h = cord[3]
-        wc = wall[1]
-        wall_width = 0.5/2
-        if door is None:
-            if wall[0] is 0:
-                vertices = [[x+wc-wall_width,y],[x+wc+wall_width,y],[x+wc+wall_width,y+h],[x+wc-wall_width,y+h]]
-            else:
-                vertices = [[x,y+wc-wall_width],[x,y+wc+wall_width],[x+w,y+wc+wall_width],[x+w,y+wc-wall_width]]
-            geom = rendering.make_polygon(vertices)
-            viewer.add_geom(geom)
+    viewer = rendering.Viewer(int(600),int(600))
+    viewer.set_bounds(-1,+9,-1,+9)
+
+    for wall in wall_list:
+        x = wall['coord'][0]
+        y = wall['coord'][1]
+        direction = wall['direction']
+        hww = wall['hww']
+        l = wall['length']
+        door_list = wall['door']
+        start = 0
+        if len(door_list)>0:
+            for door in sorted(door_list,key = lambda x:x[0]):
+                dc = door[0]
+                dw = door[1]
+                if direction is 0:
+                    vertices = [[x-hww,y+start],[x+hww,y+start],[x+hww,y+dc],[x-hww,y+dc]]
+                else:
+                    vertices = [[x+start,y-hww],[x+start,y+hww],[x+dc,y+hww],[x+dc,y-hww]]  
+                geom = rendering.make_polygon(vertices)
+                viewer.add_geom(geom)
+                start = dc+dw
+
+        if direction is 0:
+            vertices = [[x-hww,y+start],[x+hww,y+start],[x+hww,y+l],[x-hww,y+l]]
         else:
-            dc = door[0]
-            dw = door[1]
-            if wall[0] is 0:
-                vertices1 = [[x+wc-wall_width,y],[x+wc+wall_width,y],[x+wc+wall_width,y+dc],[x+wc-wall_width,y+dc]]
-                vertices2 = [[x+wc-wall_width,y+dc+dw],[x+wc+wall_width,y+dc+dw],[x+wc+wall_width,y+h],[x+wc-wall_width,y+h]]
-            else:
-                vertices1 = [[x,y+wc-wall_width],[x,y+wc+wall_width],[x+dc,y+wc+wall_width],[x+dc,y+wc-wall_width]]
-                vertices2 = [[x+dc+dw,y+wc-wall_width],[x+dc+dw,y+wc+wall_width],[x+w,y+wc+wall_width],[x+w,y+wc-wall_width]]
-            geom1 = rendering.make_polygon(vertices1)
-            geom2 = rendering.make_polygon(vertices2)
-            viewer.add_geom(geom1)
-            viewer.add_geom(geom2)
-            
+            vertices = [[x+start,y-hww],[x+start,y+hww],[x+l,y+hww],[x+l,y-hww]]
+        geom = rendering.make_polygon(vertices)
+        viewer.add_geom(geom)
+    if placeable_area_list is not None:
+        for area in placeable_area_list:
+            [x,y,w,h] = area
+            vertices = [[x,y],[x+w,y],[x+w,y+h],[x,y+h]]
+            geom = rendering.make_polygon(vertices)
+            geom.set_color(1.0,0.0,0.0,alpha = 0.5)
+            viewer.add_geom(geom)
     viewer.render(return_rgb_array = False)
-#if __name__=='__main__':
-#    print(place_wall())

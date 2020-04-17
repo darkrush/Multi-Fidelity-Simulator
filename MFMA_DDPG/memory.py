@@ -7,11 +7,11 @@ class Memory(object):
         self._nb_entries = 0
         
         self.data_buffer = {}
-        self.data_buffer['obs0'      ] = [torch.zeros((limit,) + shape).cuda() for shape in observation_shape]
-        self.data_buffer['obs1'      ] = [torch.zeros((limit,) + shape).cuda() for shape in observation_shape]
-        self.data_buffer['actions'   ] = torch.zeros((limit,) + action_shape     ).cuda()
-        self.data_buffer['rewards'   ] = torch.zeros((limit,1)                   ).cuda()
-        self.data_buffer['terminals1'] = torch.zeros((limit,1)                   ).cuda()
+        self.data_buffer['obs0'      ] = [torch.zeros((limit,) + shape) for shape in observation_shape]
+        self.data_buffer['obs1'      ] = [torch.zeros((limit,) + shape) for shape in observation_shape]
+        self.data_buffer['actions'   ] = torch.zeros((limit,) + action_shape     )
+        self.data_buffer['rewards'   ] = torch.zeros((limit,1)                   )
+        self.data_buffer['terminals1'] = torch.zeros((limit,1)                   )
 
     def __getitem(self, idx):
         return_dict = {}
@@ -33,7 +33,7 @@ class Memory(object):
         return return_dict
     
     def sample(self, batch_size):
-        batch_idxs = torch.randint(0,self._nb_entries, (batch_size,),dtype = torch.long).cuda()
+        batch_idxs = torch.randint(0,self._nb_entries, (batch_size,),dtype = torch.long)
         return_dict = {}
         return_dict['obs0']=[torch.index_select(tensor,0,batch_idxs) for tensor in self.data_buffer['obs0']]
         return_dict['obs1']=[torch.index_select(tensor,0,batch_idxs) for tensor in self.data_buffer['obs1']]

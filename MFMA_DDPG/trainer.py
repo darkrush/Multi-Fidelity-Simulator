@@ -9,7 +9,7 @@ from .logger import Singleton_logger
 from .ddpg import DDPG
 import sys
 sys.path.append("..")
-from MF_env import policy
+from HF_Sim import policy
 
 class DDPG_trainer(object):
     def __init__(self):
@@ -39,7 +39,7 @@ class DDPG_trainer(object):
                 total_cycle+=1
                 self.env.reset_rollout()
                 rollout_policy = policy.NN_policy(self.agent.actor,10.0/(total_cycle+10.0))
-                self.env.rollout(rollout_policy.inference, self.ctrl_fps)
+                self.env.rollout_sync(rollout_policy.inference, self.ctrl_fps)
                 trajectoy = self.env.get_trajectoy()
                 results = self.env.get_result()
                 for key,value in results.items():
