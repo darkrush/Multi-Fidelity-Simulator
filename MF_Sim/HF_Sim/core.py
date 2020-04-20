@@ -352,6 +352,7 @@ class World(object):
         self.viewer = None
         self.laser_clear = False
         self._reset_render()
+        self._check_camera_bound()
 
     def reset(self):
         self.laser_clear = False
@@ -411,12 +412,24 @@ class World(object):
     def render(self, mode='human'):
         if self.viewer is None:
             from . import rendering 
-            self.viewer = rendering.Viewer(int(600),int(600))
+
+            import pyglet
+            screen = pyglet.canvas.get_display().get_default_screen()
+            max_width = int(screen.width * 0.9) 
+            max_height = int(screen.height * 0.9)
+            if self.cam_bound[1]/self.cam_bound[3]>max_width/max_height:
+                screen_width = max_width
+                screen_height  = max_width/(self.cam_bound[1]/self.cam_bound[3])
+            else:
+                screen_height = max_height
+                screen_width  = max_height*(self.cam_bound[1]/self.cam_bound[3])
+            self.viewer = rendering.Viewer(int(screen_width),int(screen_height))
+            
+            self.viewer.set_bounds(self.cam_bound[0],self.cam_bound[0]+self.cam_bound[1],self.cam_bound[2],self.cam_bound[2]+self.cam_bound[3])
         # create rendering geometry
         if self.agent_geom_list is None:
             # import rendering only if we need it (and don't import for headless machines)
             from . import rendering
-            self.viewer.set_bounds(-0.5, 0.5 + self.cam_range*1.0, -0.5, self.cam_range*1.0+0.5)
             self.agent_geom_list = []
             
             for agent in self.agents:
@@ -577,7 +590,27 @@ class World(object):
             if reach :
                 agent.state.reach = True
                 agent.state.movable = False
-    
+
+    def _check_camera_bound(self):
+        low_x = float("inf")
+        high_x = -float("inf")
+        low_y = float("inf")
+        high_y = -float("inf")
+        for fence in self.fences:
+            for v in fence.global_vertices:
+                low_x = min(low_x,v[0])
+                high_x = max(high_x,v[0])
+                low_y = min(low_x,v[1])
+                high_y = max(high_y,v[1])
+        w = high_x - low_x
+        h = high_y - low_y
+        low_x = low_x - w*0.1
+        low_y = low_y - h*0.1
+        w = w*1.2
+        h = h*1.2
+
+        self.cam_bound = [low_x,w,low_y,h]
+
     def _reset_render(self):
         self.agent_geom_list = None
         self.fence_geom_list = None

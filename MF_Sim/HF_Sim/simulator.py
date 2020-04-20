@@ -179,7 +179,7 @@ class Full_env(gym.Env):
         info = {}
         self.last_state = new_state
         return obs,reward,done,info
-
+    
     def _calc_reward(self,new_state,old_state):
         all_reward = 0
         for ns,os in zip(new_state,old_state):

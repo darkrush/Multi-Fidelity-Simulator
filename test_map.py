@@ -1,4 +1,4 @@
-from HF_Sim import random_map
+from MF_Sim.HF_Sim  import random_map
 half_wall_width = 0.2
 car_R = 0.2
 door_width = 0.8
