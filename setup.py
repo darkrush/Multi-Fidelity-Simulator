@@ -10,7 +10,7 @@ setup(name='MF_Sim',
       include_package_data=True,
       zip_safe=False,
       install_requires=['gym',
-                        'numpy-stl',
+                        'numpy',
                         'six',
                         'pyglet']
 )
