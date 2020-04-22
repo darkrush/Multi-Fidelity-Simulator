@@ -71,7 +71,7 @@ class HighFidelityEnv(gym.Env):
 
     def reset(self):
         new_state = self.world.get_state()
-        new_state = self._random_reset(new_state,all_reset=True)
+        new_state, dead = self._random_reset(new_state,all_reset=True)
         obs = self.world.get_obs()
         self.last_state = new_state
         return obs
@@ -84,21 +84,23 @@ class HighFidelityEnv(gym.Env):
         self.world.step()
         obs = self.world.get_obs()
         new_state = self.world.get_state()
+        
         reward = self._calc_reward(new_state,self.last_state)
-        new_state = self._random_reset(new_state)
+        dead = [new]
+        new_state, dead = self._random_reset(new_state)
         self.world.set_state(new_state)
         done = False
-        info = {}
+        info = {'dead':dead}
         self.last_state = new_state
-        return obs,reward,done,info
+        return obs, reward, done, info
 
     def _calc_reward(self,new_state,old_state):
-        all_reward = 0
+        all_reward = []
         for ns,os in zip(new_state,old_state):
             crash = -10 if ns.crash else 0
             reach = 10 if ns.reach else 0
             reward = crash + reach
-            all_reward = all_reward + reward
+            all_reward.append(reward)
         return all_reward
 
     def _random_reset(self,state_list, all_reset = False):
@@ -108,6 +110,7 @@ class HighFidelityEnv(gym.Env):
         target_reset_flag = [state.reach or all_reset for state in state_list]
         new_coord_list = placeable_sample(self.placeable_list,coord_list,reset_flag,self.R_safe)
         new_target_list = placeable_sample(self.placeable_list,target_coord_list,target_reset_flag,self.R_safe)
+        dead = [reach or crash for (reach,crash) in zip(reset_flag, target_reset_flag)]
         for idx,state in enumerate(state_list):
             if reset_flag[idx]:
                 state_list[idx].theta = np.random.uniform(0,3.1415926*2)
@@ -118,7 +121,7 @@ class HighFidelityEnv(gym.Env):
             state_list[idx].y = new_coord_list[idx][1]
             state_list[idx].target_x = new_target_list[idx][0]
             state_list[idx].target_y = new_target_list[idx][1]
-        return state_list
+        return state_list,dead
 
     def close(self):
         pass
