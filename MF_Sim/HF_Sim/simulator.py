@@ -111,10 +111,10 @@ class Full_env(gym.Env):
         obs = self.world.get_obs()
         new_state = self.world.get_state()
         reward = self._calc_reward(new_state,self.last_state)
-        new_state,dead = self._random_reset(new_state)
+        new_state,dead,crash,reach = self._random_reset(new_state)
         self.world.set_state(new_state)
         done = False
-        info = {'dead':dead}
+        info = {'dead':dead,'crash':crash,'reach':reach}
         self.last_state = new_state
         return obs,reward,done,info
     
@@ -138,6 +138,8 @@ class Full_env(gym.Env):
         new_coord_list = placeable_sample(self.placeable_list,coord_list,reset_flag,self.R_safe)
         new_target_list = placeable_sample(self.placeable_list,target_coord_list,target_reset_flag,self.R_safe)
         dead = [reach or crash for (reach,crash) in zip(reset_flag, target_reset_flag)]
+        crash = [state.crash for state in state_list]
+        reach = [state.reach for state in state_list]
         for idx,state in enumerate(state_list):
             if reset_flag[idx]:
                 state_list[idx].theta = np.random.uniform(0,3.1415926*2)
@@ -148,7 +150,7 @@ class Full_env(gym.Env):
             state_list[idx].y = new_coord_list[idx][1]
             state_list[idx].target_x = new_target_list[idx][0]
             state_list[idx].target_y = new_target_list[idx][1]
-        return state_list,dead
+        return state_list,dead,crash,reach
 
     def close(self):
         pass
