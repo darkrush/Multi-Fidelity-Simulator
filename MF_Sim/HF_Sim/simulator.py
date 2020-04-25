@@ -97,7 +97,7 @@ class Full_env(gym.Env):
         else:
             self.world.setup(agent_dict,fence_dict)
         new_state = self.world.get_state()
-        new_state,dead = self._random_reset(new_state,all_reset=True)
+        new_state,_,_,_ = self._random_reset(new_state,all_reset=True)
         self.world.set_state(new_state)
         obs = self.world.get_obs()
         self.last_state = new_state
