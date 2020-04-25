@@ -92,7 +92,10 @@ class Full_env(gym.Env):
         fence_dict, placeable_list = result
         self.placeable_list = placeable_list
         agent_dict = random_agent(placeable_list, self.agent_number)
-        self.world = World(agent_dict,fence_dict)
+        if self.world is None:
+            self.world = World(agent_dict,fence_dict)
+        else:
+            self.world.setup(agent_dict,fence_dict)
         new_state = self.world.get_state()
         new_state,dead = self._random_reset(new_state,all_reset=True)
         self.world.set_state(new_state)
@@ -118,9 +121,12 @@ class Full_env(gym.Env):
     def _calc_reward(self,new_state,old_state):
         all_reward = []
         for ns,os in zip(new_state,old_state):
+            old_dis = ((os.x-os.target_x)**2+(os.y-os.target_y)**2)**0.5
+            new_dis = ((ns.x-ns.target_x)**2+(ns.y-ns.target_y)**2)**0.5
+            potential_reward = old_dis-new_dis
             crash = -10 if ns.crash else 0
             reach = 10 if ns.reach else 0
-            reward = crash + reach
+            reward = crash + reach + potential_reward
             all_reward.append(reward)
         return all_reward
 

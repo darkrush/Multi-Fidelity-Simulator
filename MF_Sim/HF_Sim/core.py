@@ -328,8 +328,10 @@ class Agent(object):
 # multi-agent world
 class World(object):
     def __init__(self,agent_groups,fence_list,cfg = None):
+        self.setup(agent_groups,fence_list,cfg)
+        self.viewer = None
         
-        # list of agents and entities (can change at execution-time!)
+    def setup(self,agent_groups,fence_list,cfg = None):
         self.agents = []
         for (_,agent_group) in agent_groups.items():
             for agent_prop in agent_group:
@@ -349,10 +351,11 @@ class World(object):
             self.step_num = cfg['step_num']
             self.dt = cfg['dt']
             self.cam_range =  cfg['cam_range']
-        self.viewer = None
+        
         self.laser_clear = False
         self._reset_render()
         self._check_camera_bound()
+        pass
 
     def reset(self):
         self.laser_clear = False
