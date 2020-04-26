@@ -51,10 +51,9 @@ class naive_policy(object):
         action_list = []
         for obs in obs_list:
             obs = obs.pos
-            theta = obs[2]
-            xt = obs[3] - obs[0]
-            yt = obs[4] - obs[1]
-            xt,yt = (xt*np.cos(theta)+yt*np.sin(theta),yt*np.cos(theta)-xt*np.sin(theta))
+            xt = obs[4] - obs[0]
+            yt = obs[5] - obs[1]
+            xt,yt = (xt*obs[2]+yt*obs[3],yt*obs[2]-xt*obs[3])
     
             if abs(yt) < self.dist:
                 vel = np.sign(xt)

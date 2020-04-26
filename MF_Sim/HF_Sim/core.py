@@ -394,7 +394,7 @@ class World(object):
         self._update_laser_state()
         for idx_a in range(len(self.agents)):
             state = self.agents[idx_a].state
-            pos = np.array([state.x, state.y, state.theta, state.target_x, state.target_y])
+            pos = np.array([state.x, state.y, math.cos(state.theta),math.sin(state.theta), state.target_x, state.target_y])
             laser_data = self.agents[idx_a].laser_state
             obs = Observation()
             obs.pos = pos

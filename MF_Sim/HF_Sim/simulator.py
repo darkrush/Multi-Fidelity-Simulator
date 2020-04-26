@@ -5,7 +5,77 @@ from .random_map import random_fence
 from .core import Action,World
 from .utils import temp_agent_prop
 
+def sample_in_radio(R,center_coord = [0,0]):
+    theta = np.random.rand()*2*np.pi
+    r = R*np.sqrt(np.random.rand())
+    return r*np.cos(theta)+center_coord[0], r*np.sin(theta) + center_coord[1]
 
+def sample_from_placeable(placeable_list,car_R):
+    room_id = np.random.randint(len(placeable_list))
+    x = placeable_list[room_id][0] + car_R \
+        + (placeable_list[room_id][2] - 2*car_R) * np.random.rand()
+    y = placeable_list[room_id][1] + car_R \
+        + (placeable_list[room_id][3] - 2*car_R) * np.random.rand()
+    return x,y
+
+def check_in_placeable(placeable_list,car_R, coord):
+    x = coord[0]
+    y = coord[1]
+    for room in placeable_list:
+        x_in = room[0]+car_R< x < room[0]+room[2]-car_R
+        y_in = room[1]+car_R< y < room[1]+room[3]-car_R
+        if x_in and y_in:
+            return True
+    return False
+
+def near_placeable_sample(placeable_list,
+                          input_all_coord, sample_flag,
+                          target_all_coord, target_flag,
+                          car_R, near_dist, dead_count = 10000):
+    i_coord_list = copy.deepcopy(input_all_coord)
+    t_coord_list = copy.deepcopy(target_all_coord)
+    all_number = len(i_coord_list)
+    for idx in range(all_number):
+        if not sample_flag[idx] and not target_flag[idx]:
+            continue
+        if not sample_flag[idx] and target_flag[idx]:
+            while True:
+                x,y = sample_in_radio(near_dist,i_coord_list[idx])
+                if check_in_placeable(placeable_list,car_R, [x,y]):
+                    break
+            t_coord_list[idx] = [x,y]
+
+        if sample_flag[idx] :
+            if target_flag[idx]:
+                t_coord_list[idx] = sample_from_placeable(placeable_list,car_R)
+            while True:
+                x,y = sample_in_radio(near_dist,t_coord_list[idx])
+                if check_in_placeable(placeable_list,car_R, [x,y]):
+                    break
+            i_coord_list[idx] = [x,y]
+
+
+        failed = False
+        for all_coord in (i_coord_list, t_coord_list):
+            for (pos_id_1) in range(all_number):    
+                for pos_id_2 in range(pos_id_1+1,all_number):
+                    dist_squre = (all_coord[pos_id_1][0]-all_coord[pos_id_2][0])**2 \
+                                +(all_coord[pos_id_1][1]-all_coord[pos_id_2][1])**2
+                    if dist_squre<(2*car_R)**2:
+                        failed = True
+                        break
+                if failed:
+                    break
+            if failed:
+                break
+        if not failed :
+            break
+        dead_count = dead_count - 1
+        if dead_count == 0:
+            return None
+    return i_coord_list,t_coord_list
+
+    
 
 def placeable_sample(placeable_list, input_all_coord,
                      sample_flag, car_R, dead_count = 1000):
@@ -14,13 +84,7 @@ def placeable_sample(placeable_list, input_all_coord,
     all_number = len(all_coord)
     while dead_count>0:
         for sample_id in sample_id_list:
-            room_id = np.random.randint(len(placeable_list))
-            x = placeable_list[room_id][0] + car_R \
-              + (placeable_list[room_id][2] - 2*car_R) * np.random.rand()
-            y = placeable_list[room_id][1] + car_R \
-              + (placeable_list[room_id][3] - 2*car_R) * np.random.rand()
-            all_coord[sample_id][0] = x
-            all_coord[sample_id][1] = y
+            all_coord[sample_id] = sample_from_placeable(placeable_list,car_R)
 
         failed = False
         for (pos_id_1) in range(all_number):
@@ -67,10 +131,12 @@ class Full_env(gym.Env):
                       room_number = 5,
                       door_width = 0.8,
                       half_wall_width = 0.05,
-                      agent_number = 3):
+                      agent_number = 3,
+                      near_dist = -1.0):
         self.temp_agent_prop = temp_agent_prop()
         self.map_W = map_W
         self.map_H = map_H
+        self.near_dist = near_dist
         self.room_number = room_number
         self.door_width = door_width
         self.half_wall_width = half_wall_width
@@ -97,7 +163,7 @@ class Full_env(gym.Env):
         else:
             self.world.setup(agent_dict,fence_dict)
         new_state = self.world.get_state()
-        new_state,_,_,_ = self._random_reset(new_state,all_reset=True)
+        new_state,_,_,_ = self._random_reset(new_state,all_reset=True,near_dist = self.near_dist)
         self.world.set_state(new_state)
         obs = self.world.get_obs()
         self.last_state = new_state
@@ -111,11 +177,11 @@ class Full_env(gym.Env):
         obs = self.world.get_obs()
         new_state = self.world.get_state()
         reward = self._calc_reward(new_state,self.last_state)
-        new_state,dead,crash,reach = self._random_reset(new_state)
+        new_state,dead,crash,reach = self._random_reset(new_state,all_reset=False,near_dist = self.near_dist)
         self.world.set_state(new_state)
         done = False
         info = {'dead':dead,'crash':crash,'reach':reach}
-        self.last_state = new_state
+        self.last_state = copy.deepcopy(new_state)
         return obs,reward,done,info
     
     def _calc_reward(self,new_state,old_state):
@@ -126,17 +192,23 @@ class Full_env(gym.Env):
             potential_reward = old_dis-new_dis
             crash = -10 if ns.crash else 0
             reach = 10 if ns.reach else 0
-            reward = crash + reach + potential_reward
+            reward = crash + reach + potential_reward*10
             all_reward.append(reward)
         return all_reward
 
-    def _random_reset(self,state_list, all_reset = False):
+    def _random_reset(self,state_list, all_reset = False, near_dist = -1):
         coord_list = [[state.x,state.y] for state in state_list]
         reset_flag = [state.crash or all_reset for state in state_list]
         target_coord_list = [[state.target_x,state.target_y] for state in state_list]
         target_reset_flag = [state.reach or all_reset for state in state_list]
-        new_coord_list = placeable_sample(self.placeable_list,coord_list,reset_flag,self.R_safe)
-        new_target_list = placeable_sample(self.placeable_list,target_coord_list,target_reset_flag,self.R_safe)
+        if near_dist <0:
+            new_coord_list = placeable_sample(self.placeable_list,coord_list,reset_flag,self.R_safe)
+            new_target_list = placeable_sample(self.placeable_list,target_coord_list,target_reset_flag,self.R_safe)
+        else:
+            new_coord_list,new_target_list = near_placeable_sample(self.placeable_list,
+                                                                   coord_list, reset_flag,
+                                                                   target_coord_list, target_reset_flag,
+                                                                   self.R_safe,near_dist)
         dead = [reach or crash for (reach,crash) in zip(reset_flag, target_reset_flag)]
         crash = [state.crash for state in state_list]
         reach = [state.reach for state in state_list]
