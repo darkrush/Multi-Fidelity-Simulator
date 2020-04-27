@@ -327,11 +327,13 @@ class Agent(object):
     
 # multi-agent world
 class World(object):
-    def __init__(self,agent_groups,fence_list,cfg = None):
-        self.setup(agent_groups,fence_list,cfg)
+    def __init__(self, agent_groups, fence_list, dt = 0.1, step_num = 1):
+        self.dt = dt
+        self.step_num = step_num
+        self.setup(agent_groups,fence_list)
         self.viewer = None
         
-    def setup(self,agent_groups,fence_list,cfg = None):
+    def setup(self,agent_groups,fence_list):
         self.agents = []
         for (_,agent_group) in agent_groups.items():
             for agent_prop in agent_group:
@@ -344,14 +346,7 @@ class World(object):
         for idx,agent in enumerate(self.agents):
             agent.color = hsv2rgb(360.0/len(self.agents)*idx,1.0,1.0)
         # simulation timestep
-        self.dt = 0.1
-        self.step_num = 1
-        self.cam_range = 8
-        if cfg is not None:
-            self.step_num = cfg['step_num']
-            self.dt = cfg['dt']
-            self.cam_range =  cfg['cam_range']
-        
+               
         self.laser_clear = False
         self._reset_render()
         self._check_camera_bound()
@@ -535,6 +530,7 @@ class World(object):
                         continue
                     l_laser = agent_a.laser_agent_agent(agent_b)
                     agent_a.laser_state = np.min(np.vstack([agent_a.laser_state,l_laser]),axis = 0)
+            self.laser_clear = True
 
     # integrate physical state
     def _integrate_state(self):

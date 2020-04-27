@@ -104,8 +104,11 @@ def placeable_sample(placeable_list, input_all_coord,
     return all_coord
 
 
-def random_agent(placeable_list, agent_number):
-    Agent_prop = temp_agent_prop()
+def random_agent(placeable_list, agent_number, agent_prop = None):
+    if agent_prop is None:
+        Agent_prop = temp_agent_prop()
+    else:
+        Agent_prop = agent_prop
     R_Safe = Agent_prop['R_safe']
     dummy_coord = [[0,0] for _ in range(agent_number)]
     sample_flag = [True for _ in range(agent_number)]
@@ -132,8 +135,16 @@ class Full_env(gym.Env):
                       door_width = 0.8,
                       half_wall_width = 0.05,
                       agent_number = 3,
-                      near_dist = -1.0):
-        self.temp_agent_prop = temp_agent_prop()
+                      near_dist = -1.0,
+                      crash_reward = -10,
+                      reach_reward =  10,
+                      potential = 1.0,
+                      time_penalty = -0.1,
+                      agent_prop = None):
+        if agent_prop is None:
+            self.agent_prop = temp_agent_prop()
+        else:
+            self.agent_prop = agent_prop
         self.map_W = map_W
         self.map_H = map_H
         self.near_dist = near_dist
@@ -141,7 +152,11 @@ class Full_env(gym.Env):
         self.door_width = door_width
         self.half_wall_width = half_wall_width
         self.agent_number = agent_number
-        self.R_safe = self.temp_agent_prop['R_safe']
+        self.crash_reward = crash_reward
+        self.reach_reward = reach_reward
+        self.potential = potential
+        self.time_penalty = time_penalty
+        self.R_safe = self.agent_prop['R_safe']
         self.world = None
 
     def render(self):
@@ -157,7 +172,7 @@ class Full_env(gym.Env):
                               room_number = self.room_number)
         fence_dict, placeable_list = result
         self.placeable_list = placeable_list
-        agent_dict = random_agent(placeable_list, self.agent_number)
+        agent_dict = random_agent(placeable_list, self.agent_number,self.agent_prop )
         if self.world is None:
             self.world = World(agent_dict,fence_dict)
         else:
@@ -189,10 +204,12 @@ class Full_env(gym.Env):
         for ns,os in zip(new_state,old_state):
             old_dis = ((os.x-os.target_x)**2+(os.y-os.target_y)**2)**0.5
             new_dis = ((ns.x-ns.target_x)**2+(ns.y-ns.target_y)**2)**0.5
-            potential_reward = old_dis-new_dis
-            crash = -10 if ns.crash else 0
-            reach = 10 if ns.reach else 0
-            reward = crash + reach + potential_reward*10
+            potential_reward = (old_dis-new_dis)*self.potential
+            crash = self.crash_reward if ns.crash else 0
+            reach = self.reach_reward if ns.reach else 0
+            potential_reward = potential_reward if not (crash or reach) else 0
+
+            reward = crash + reach + potential_reward + self.time_penalty
             all_reward.append(reward)
         return all_reward
 
