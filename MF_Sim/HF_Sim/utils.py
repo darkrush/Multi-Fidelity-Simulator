@@ -50,7 +50,8 @@ class naive_policy(object):
     def inference(self,obs_list,new_state):
         action_list = []
         for obs in obs_list:
-            obs = obs.pos
+            print(obs)
+            obs = obs[-6:]
             xt = obs[4] - obs[0]
             yt = obs[5] - obs[1]
             xt,yt = (xt*obs[2]+yt*obs[3],yt*obs[2]-xt*obs[3])

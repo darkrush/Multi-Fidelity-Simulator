@@ -14,7 +14,7 @@ car_R = 0.2
 door_width = 0.8
 room_number = 4
 agent_number = 3
-near_dist = 2.0
+near_dist = 1.0
 Env = simulator.Full_env(map_W ,map_H,room_number,door_width,half_wall_width,agent_number,near_dist)
 obs = Env.reset()
 while True:

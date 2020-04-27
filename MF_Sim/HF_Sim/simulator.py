@@ -158,6 +158,12 @@ class Full_env(gym.Env):
         self.time_penalty = time_penalty
         self.R_safe = self.agent_prop['R_safe']
         self.world = None
+        low_array = np.array([0.0 for _ in range(self.agent_prop['N_laser'])]+[0,0,-1,-1,0,0])
+        low_array = np.vstack([low_array for _ in range(self.agent_number)]) 
+        high_array = np.array([self.agent_prop['R_laser'] for _ in range(self.agent_prop['N_laser'])]+[map_W,map_H,1,1,map_W,map_H])
+        high_array = np.vstack([high_array for _ in range(self.agent_number)]) 
+        self.observation_space = gym.spaces.Box(low = low_array,high = high_array)
+        self.action_space = gym.spaces.Box(-1,1,(self.agent_number,2,))
 
     def render(self):
         assert self.world is not None
@@ -182,7 +188,8 @@ class Full_env(gym.Env):
         self.world.set_state(new_state)
         obs = self.world.get_obs()
         self.last_state = new_state
-        return obs
+        obs_array = np.vstack([np.hstack([obs_idx.laser_data,obs_idx.pos]) for obs_idx in obs])
+        return obs_array
 
     def step(self,action):
         assert self.world is not None
@@ -190,6 +197,7 @@ class Full_env(gym.Env):
         self.world.set_action(action_list)
         self.world.step()
         obs = self.world.get_obs()
+        obs_array = np.vstack([np.hstack([obs_idx.laser_data,obs_idx.pos]) for obs_idx in obs])
         new_state = self.world.get_state()
         reward = self._calc_reward(new_state,self.last_state)
         new_state,dead,crash,reach = self._random_reset(new_state,all_reset=False,near_dist = self.near_dist)
@@ -197,7 +205,7 @@ class Full_env(gym.Env):
         done = False
         info = {'dead':dead,'crash':crash,'reach':reach}
         self.last_state = copy.deepcopy(new_state)
-        return obs,reward,done,info
+        return obs_array,reward,done,info
     
     def _calc_reward(self,new_state,old_state):
         all_reward = []
