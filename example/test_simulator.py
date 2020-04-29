@@ -15,7 +15,12 @@ door_width = 0.8
 room_number = 4
 agent_number = 3
 near_dist = 1.0
-Env = simulator.Full_env(map_W ,map_H,room_number,door_width,half_wall_width,agent_number,near_dist)
+Env = simulator.Full_env(map_W = map_W ,map_H = map_H,
+                         room_number = room_number,
+                         door_width = door_width,
+                         half_wall_width = half_wall_width,
+                         agent_number = agent_number,
+                         near_dist = near_dist)
 obs = Env.reset()
 while True:
     action_list = n_policy.inference(obs,[])

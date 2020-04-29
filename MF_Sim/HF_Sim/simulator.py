@@ -140,6 +140,8 @@ class Full_env(gym.Env):
                       reach_reward =  10,
                       potential = 1.0,
                       time_penalty = -0.1,
+                      dt = 0.1,
+                      nb_step = 1,
                       agent_prop = None):
         if agent_prop is None:
             self.agent_prop = temp_agent_prop()
@@ -180,7 +182,7 @@ class Full_env(gym.Env):
         self.placeable_list = placeable_list
         agent_dict = random_agent(placeable_list, self.agent_number,self.agent_prop )
         if self.world is None:
-            self.world = World(agent_dict,fence_dict)
+            self.world = World(agent_dict,fence_dict,dt,nb_step)
         else:
             self.world.setup(agent_dict,fence_dict)
         new_state = self.world.get_state()
@@ -197,6 +199,7 @@ class Full_env(gym.Env):
         self.world.set_action(action_list)
         self.world.step()
         obs = self.world.get_obs()
+        
         obs_array = np.vstack([np.hstack([obs_idx.laser_data,obs_idx.pos]) for obs_idx in obs])
         new_state = self.world.get_state()
         reward = self._calc_reward(new_state,self.last_state)
