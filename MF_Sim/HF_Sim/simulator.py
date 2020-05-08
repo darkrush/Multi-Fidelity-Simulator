@@ -35,25 +35,25 @@ def near_placeable_sample(placeable_list,
     i_coord_list = copy.deepcopy(input_all_coord)
     t_coord_list = copy.deepcopy(target_all_coord)
     all_number = len(i_coord_list)
-    for idx in range(all_number):
-        if not sample_flag[idx] and not target_flag[idx]:
-            continue
-        if not sample_flag[idx] and target_flag[idx]:
-            while True:
-                x,y = sample_in_radio(near_dist,i_coord_list[idx])
-                if check_in_placeable(placeable_list,car_R, [x,y]):
-                    break
-            t_coord_list[idx] = [x,y]
-
-        if sample_flag[idx] :
-            if target_flag[idx]:
-                t_coord_list[idx] = sample_from_placeable(placeable_list,car_R)
-            while True:
-                x,y = sample_in_radio(near_dist,t_coord_list[idx])
-                if check_in_placeable(placeable_list,car_R, [x,y]):
-                    break
-            i_coord_list[idx] = [x,y]
-
+    while True:
+        for idx in range(all_number):
+            if not sample_flag[idx] and not target_flag[idx]:
+                continue
+            if not sample_flag[idx] and target_flag[idx]:
+                while True:
+                    x,y = sample_in_radio(near_dist,i_coord_list[idx])
+                    if check_in_placeable(placeable_list,car_R, [x,y]):
+                        break
+                t_coord_list[idx] = [x,y]
+    
+            if sample_flag[idx] :
+                if target_flag[idx]:
+                    t_coord_list[idx] = sample_from_placeable(placeable_list,car_R)
+                while True:
+                    x,y = sample_in_radio(near_dist,t_coord_list[idx])
+                    if check_in_placeable(placeable_list,car_R, [x,y]):
+                        break
+                i_coord_list[idx] = [x,y]
 
         failed = False
         for all_coord in (i_coord_list, t_coord_list):
@@ -157,13 +157,15 @@ class Full_env(gym.Env):
         self.crash_reward = crash_reward
         self.reach_reward = reach_reward
         self.potential = potential
+        self.dt = dt
+        self.nb_step = nb_step
         self.time_penalty = time_penalty
         self.R_safe = self.agent_prop['R_safe']
         self.world = None
         low_array = np.array([0.0 for _ in range(self.agent_prop['N_laser'])]+[0,0,-1,-1,0,0])
-        low_array = np.vstack([low_array for _ in range(self.agent_number)]) 
+        #low_array = np.vstack([low_array for _ in range(self.agent_number)]) 
         high_array = np.array([self.agent_prop['R_laser'] for _ in range(self.agent_prop['N_laser'])]+[map_W,map_H,1,1,map_W,map_H])
-        high_array = np.vstack([high_array for _ in range(self.agent_number)]) 
+        #high_array = np.vstack([high_array for _ in range(self.agent_number)]) 
         self.observation_space = gym.spaces.Box(low = low_array,high = high_array)
         self.action_space = gym.spaces.Box(-1,1,(self.agent_number,2,))
 
@@ -182,7 +184,7 @@ class Full_env(gym.Env):
         self.placeable_list = placeable_list
         agent_dict = random_agent(placeable_list, self.agent_number,self.agent_prop )
         if self.world is None:
-            self.world = World(agent_dict,fence_dict,dt,nb_step)
+            self.world = World(agent_dict,fence_dict,self.dt,self.nb_step)
         else:
             self.world.setup(agent_dict,fence_dict)
         new_state = self.world.get_state()
@@ -190,7 +192,7 @@ class Full_env(gym.Env):
         self.world.set_state(new_state)
         obs = self.world.get_obs()
         self.last_state = new_state
-        obs_array = np.vstack([np.hstack([obs_idx.laser_data,obs_idx.pos]) for obs_idx in obs])
+        obs_array = [np.hstack([obs_idx.laser_data,obs_idx.pos]) for obs_idx in obs]
         return obs_array
 
     def step(self,action):
@@ -200,7 +202,7 @@ class Full_env(gym.Env):
         self.world.step()
         obs = self.world.get_obs()
         
-        obs_array = np.vstack([np.hstack([obs_idx.laser_data,obs_idx.pos]) for obs_idx in obs])
+        obs_array = [np.hstack([obs_idx.laser_data,obs_idx.pos]) for obs_idx in obs]
         new_state = self.world.get_state()
         reward = self._calc_reward(new_state,self.last_state)
         new_state,dead,crash,reach = self._random_reset(new_state,all_reset=False,near_dist = self.near_dist)
