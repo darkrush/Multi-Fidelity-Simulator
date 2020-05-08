@@ -22,6 +22,13 @@ class AgentState(object):
         self.target_x   = 1
         # target y coordinate
         self.target_y   = 1
+    def __str__(self):
+        coord = 'x,y,theta:('+str(self.x)+', '+str(self.y)+', '+str(self.theta)+')'
+        targetcoord = 't_x,t_y:('+str(self.target_x)+', '+str(self.target_y)+')'
+        
+        return coord+'\n'+targetcoord
+    def __repr__(self):
+        return self.__str__()        
 
 # action of the agent
 class Action(object):
@@ -263,12 +270,10 @@ class Agent(object):
                 continue
             if oysubR>a_pos[1] and  oysubR>b_pos[1]:
                 continue
-    
             v_oa = a_pos - o_pos
             v_ob = b_pos - o_pos
             v_ab = b_pos - a_pos
             dist_o_ab = np.abs(np.cross(v_oa,v_ab)/np.linalg.norm(v_ab))
-
             #if distance(o,ab) > R, laser signal changes
             if dist_o_ab > R:
                 continue
@@ -277,34 +282,10 @@ class Agent(object):
             bb = np.dot(v_ob,v_ob)
             ab = np.dot(v_oa,v_ob)
             numerator = ab*ab-aa*bb
-            #v_ab_normal = np.array([v_ab[1],-v_ab[0]])
-            #if np.dot(v_oa,v_ab_normal) < 0:
-            #    v_ab_normal = -v_ab_normal
-            max_adot = 0
+           
             max_aid = 0
-            max_bdot = 0
-            max_bid = 0
-            for idx_laser in range(N):
-                theta_i = theta+idx_laser*math.pi*2/N
-                c_x = R*np.cos(theta_i)
-                c_y = R*np.sin(theta_i)
-                v_oc = np.array([c_x,c_y])
-                adot = np.dot(v_oc,v_oa)
-                bdot = np.dot(v_oc,v_ob)
-                if adot > max_adot:
-                    max_adot = adot
-                    max_aid = idx_laser
-                if bdot > max_bdot:
-                    max_bdot = bdot
-                    max_bid = idx_laser
-            if max_aid > max_bid:
-                max_bid,max_aid = (max_aid,max_bid)
-            if max_bid - max_aid > N//2:
-                max_bid,max_aid = (max_aid,max_bid)
-                max_bid+=N
-                
-            #range1 = N//2
-            #range2 = N - range1
+            max_bid = N-1
+
             for idx_laser in range(max_aid,max_bid+1):
                 idx_laser %= N
                 theta_i = theta+ idx_laser*math.pi*2/N
@@ -321,7 +302,10 @@ class Agent(object):
                 cb = np.dot(v_oc,v_ob)
                 ca = np.dot(v_oc,v_oa)
                 denominator = (ab-bb)*ca-(aa-ab)*cb
-                d = abs(numerator/denominator*np.linalg.norm(v_oc))
+                if abs(denominator) <0.00001:
+                    d= 0.0
+                else:
+                    d = abs(numerator/denominator*np.linalg.norm(v_oc))
                 l_laser[idx_laser] = min(l_laser[idx_laser],d)
         return l_laser
     
