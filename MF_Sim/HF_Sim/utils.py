@@ -4,7 +4,7 @@ import math
 def temp_agent_prop():
     basic_agent_prop = {}
     basic_agent_prop['R_safe'] = 0.20
-    basic_agent_prop['R_reach']= 0.1
+    basic_agent_prop['R_reach']= 0.6
     basic_agent_prop['L_car']  = 0.30
     basic_agent_prop['W_car']  = 0.20
     basic_agent_prop['L_axis'] = 0.20

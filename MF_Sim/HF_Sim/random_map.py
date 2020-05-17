@@ -1,8 +1,16 @@
 #from .basic import AgentState,Action,Observation,Fence
-import numpy as np
 import copy
 
-def place_wall(coord,car_R,half_wall_width):
+def clip(x,l,u):
+    
+    if x < l:
+        return l
+    elif x > u:
+        return u
+    else:
+        return x
+
+def place_wall(coord,car_R,half_wall_width,np_random):
     # select long direction to place split wall
     place_direction = 0 if coord[2]>coord[3] else 1
     # check the place direction have enough distance
@@ -11,7 +19,7 @@ def place_wall(coord,car_R,half_wall_width):
     # place wall and split the room into two    
     mid_coord = coord[2+place_direction]/2.0
     random_range = coord[2+place_direction]/2.0 - 2*car_R -2*half_wall_width
-    wall_coord = np.clip(np.random.randn()/5.0,-1.0,1.0)*random_range + mid_coord
+    wall_coord = clip(np_random.randn()/5.0,-1.0,1.0)*random_range + mid_coord
     # a wall is a list with [x,y,direction,length,half_wall_width]
     wall = {'coord':[coord[0],coord[1]],
             'direction':place_direction,
@@ -30,7 +38,7 @@ def place_wall(coord,car_R,half_wall_width):
 
 
 
-def random_room(map_W,map_H,half_wall_width, car_R, door_width, room_number, max_dead_count = 1000):
+def random_room(map_W,map_H,half_wall_width, car_R, door_width, room_number,np_random, max_dead_count = 1000):
     assert door_width >= 2*car_R
     # a wall is a list with [x,y,direction,length,half_wall_width]
     
@@ -63,7 +71,7 @@ def random_room(map_W,map_H,half_wall_width, car_R, door_width, room_number, max
             if room['coord'][3]>max_length:
                 max_length_id = [idx,1]
                 max_length = room['coord'][3]
-        wall_result = place_wall(room_list[max_length_id[0]]['coord'],car_R,half_wall_width)
+        wall_result = place_wall(room_list[max_length_id[0]]['coord'],car_R,half_wall_width,np_random)
         if wall_result is None:
             print('cannot place enough room')
             break
@@ -102,15 +110,15 @@ def check_adjacency(room_1,room_2,door_width,half_wall_width,share_pair):
         return None
     return low_cord,high_cord
 
-def place_door_wall(wall,low,high,half_wall_width, door_width):
+def place_door_wall(wall,low,high,half_wall_width, door_width,np_random):
     direction = wall['direction']
     start = wall['coord'][1-direction]
     random_range = high-low-2*half_wall_width-door_width
     random_start = low + half_wall_width
-    coord = np.random.rand()*random_range + random_start - start
+    coord = np_random.rand()*random_range + random_start - start
     return [coord,door_width]
 
-def place_door(room_list, wall_list,half_wall_width, door_width, extra_door_prop = 0.5):
+def place_door(room_list, wall_list,half_wall_width, door_width,np_random, extra_door_prop = 0.5):
     share_idx_pair = [[0,1],[1,0],[2,3],[3,2]]
     adjacency_tabel = []
     #判定所有房间之间的有效邻接性（至少可以通过一扇门打通）
@@ -140,13 +148,13 @@ def place_door(room_list, wall_list,half_wall_width, door_width, extra_door_prop
             if adj[1] in cc:
                 b_idx = idx
         if a_idx == b_idx:
-            if np.random.rand()<extra_door_prop:
-                new_door = place_door_wall(new_wall_list[adj[2]],adj[3],adj[4],half_wall_width, door_width)
+            if np_random.rand()<extra_door_prop:
+                new_door = place_door_wall(new_wall_list[adj[2]],adj[3],adj[4],half_wall_width, door_width, np_random)
                 new_wall_list[adj[2]]['door'].append(new_door)
         else:
             connected_component_list[a_idx].extend(connected_component_list[b_idx])
             connected_component_list.pop(b_idx)
-            new_door = place_door_wall(new_wall_list[adj[2]],adj[3],adj[4],half_wall_width, door_width)
+            new_door = place_door_wall(new_wall_list[adj[2]],adj[3],adj[4],half_wall_width, door_width, np_random)
             new_wall_list[adj[2]]['door'].append(new_door)
     # 非连通图，无法构造
     if len(connected_component_list)>1:
@@ -194,15 +202,16 @@ def wall2fence(wall_list):
         Fence_list[len(Fence_list)] = wall_fence
     return Fence_list
 
-def random_fence(map_W,map_H,half_wall_width, car_R, door_width, room_number, max_dead_count = 1000):
+def random_fence(map_W,map_H,half_wall_width, car_R, door_width, room_number,np_random, max_dead_count = 1000):
     room_list, wall_list, placeable_area_list = random_room(map_W = map_W,
                                           map_H = map_H,
                                           half_wall_width = half_wall_width,
                                           car_R = car_R,
                                           door_width = door_width,
-                                          room_number = room_number)
+                                          room_number = room_number,
+                                          np_random = np_random)
 
-    wall_list = place_door(room_list,wall_list,half_wall_width,door_width)
+    wall_list = place_door(room_list,wall_list,half_wall_width,door_width,np_random)
     fence_dict = wall2fence(wall_list)
     return fence_dict, placeable_area_list
 
